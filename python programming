@@ -1,0 +1,151 @@
+import cv2
+import numpy as np
+from sklearn import datasets
+from sklearn.svm import SVC
+from sklearn.model_selection import train_test_split
+import tkinter as tk
+from tkinter import filedialog
+
+# Load the iris dataset
+iris = datasets.load_iris()
+X = iris.data
+y = iris.target
+
+# Split the dataset into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Train a Support Vector Machine (SVM) classifier
+svm_clf = SVC(kernel='linear')
+svm_clf.fit(X_train, y_train)
+
+# Variable to store uploaded image path
+uploaded_image_path = None
+
+# Function to measure the length and width of sepals and petals
+def measure_iris_features(image_path):
+    # Load the image
+    image = cv2.imread(image_path)
+
+    # Convert the image to grayscale
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    # Perform thresholding to isolate the iris flower
+    ret, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+
+    # Find contours in the thresholded image
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Check if the number of contours is less than a threshold
+    if len(contours) < 5:  # Adjust this threshold as needed
+        # If the number of contours is too low, likely not an iris flower
+        return None, None, None, None
+
+    # Initialize lists to store petal and sepal lengths and widths
+    petal_lengths = []
+    petal_widths = []
+    sepal_lengths = []
+    sepal_widths = []
+
+    # Loop over the contours
+    for contour in contours:
+        # Compute the bounding box of the contour
+        x, y, w, h = cv2.boundingRect(contour)
+
+        # Compute the aspect ratio of the bounding box
+        aspect_ratio = w / float(h)
+
+        # Use aspect ratio to distinguish between petals and sepals
+        if aspect_ratio > 1.5:  # Assuming petals are longer than sepals
+            # Petal
+            petal_lengths.append(h)
+            petal_widths.append(w)
+        else:
+            # Sepal
+            sepal_lengths.append(h)
+            sepal_widths.append(w)
+
+    # Calculate mean petal and sepal lengths and widths
+    mean_petal_length = np.mean(petal_lengths)
+    mean_petal_width = np.mean(petal_widths)
+    mean_sepal_length = np.mean(sepal_lengths)
+    mean_sepal_width = np.mean(sepal_widths)
+
+    return mean_petal_length, mean_petal_width, mean_sepal_length, mean_sepal_width
+
+# Create GUI
+def upload_image():
+    global uploaded_image_path
+    root = tk.Tk()
+    root.withdraw()  # Hide the main window
+    uploaded_image_path = filedialog.askopenfilename()  # Open the file dialog
+
+def measure_parameters():
+    global uploaded_image_path
+    if uploaded_image_path:
+        petal_length, petal_width, sepal_length, sepal_width = measure_iris_features(uploaded_image_path)
+        if petal_length is None:  # Validation check
+            result_text = "The uploaded image does not contain an iris flower."
+        else:
+            result_text = (
+                f"Mean Petal Length: {petal_length}\n"
+                f"Mean Petal Width: {petal_width}\n"
+                f"Mean Sepal Length: {sepal_length}\n"
+                f"Mean Sepal Width: {sepal_width}"
+            )
+
+        # Create result window
+        result_window = tk.Tk()
+        result_window.title("Iris Flower Parameters")
+        result_window.configure(bg="#ffd700")  # Background color
+        result_label = tk.Label(result_window, text=result_text, padx=20, pady=20, bg="#ffd700")  # Background color
+        result_label.pack()
+        result_window.mainloop()
+
+def identify_species():
+    global uploaded_image_path
+    if uploaded_image_path:
+        petal_length, petal_width, sepal_length, sepal_width = measure_iris_features(uploaded_image_path)
+        if petal_length is None:  # Validation check
+            result_text = "The uploaded image does not contain an iris flower."
+        else:
+            predicted_class = svm_clf.predict([[petal_length, petal_width, sepal_length, sepal_width]])[0]
+
+            # Map predicted class to iris species
+            species_mapping = {
+                0: 'Setosa',
+                1: 'Versicolor',
+                2: 'Virginica'
+            }
+            predicted_species = species_mapping[predicted_class]
+            result_text = f"Predicted Iris Species: {predicted_species}"
+
+        # Create species identification window
+        species_window = tk.Tk()
+        species_window.title("Iris Species Identification")
+        species_window.configure(bg="#00ff00")  # Background color
+        species_label = tk.Label(species_window, text=result_text, padx=20, pady=20, bg="#00ff00")  # Background color
+        species_label.pack()
+        species_window.mainloop()
+
+# Main GUI window
+root = tk.Tk()
+root.title("IRIS FLOWER DETECTOR")
+root.configure(bg="#87cefa")  # Background color
+
+# Title label
+title_label = tk.Label(root, text="IRIS FLOWER DETECTOR", font=("Arial", 20, "bold"), bg="#87cefa", fg="white")
+title_label.pack(pady=20)
+
+# Button to upload image
+upload_button = tk.Button(root, text="Upload Image", command=upload_image, bg="#ff6347", fg="white", font=("Arial", 14))  # Button color
+upload_button.pack(pady=20)
+
+# Button to measure parameters
+measure_button = tk.Button(root, text="Measure the Parameters", command=measure_parameters, bg="#ffd700", fg="black", font=("Arial", 14))  # Button color
+measure_button.pack(pady=20)
+
+# Button to identify species
+identify_button = tk.Button(root, text="Identify Species", command=identify_species, bg="#32cd32", fg="white", font=("Arial", 14))  # Button color
+identify_button.pack(pady=20)
+
+root.mainloop()
